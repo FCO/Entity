@@ -1,0 +1,25 @@
+{
+  "auth": "zef:FCO",
+  "authors": [
+    "Fernando Corrêa de Oliveira"
+  ],
+  "build-depends": [
+  ],
+  "depends": [
+  ],
+  "description": "Easy way to Event Sourcing",
+  "license": "Artistic-2.0",
+  "name": "Entity",
+  "perl": "6.d",
+  "provides": {
+    "Entity": "lib/Entity.rakumod"
+  },
+  "resources": [
+  ],
+  "source-url": "",
+  "tags": [
+  ],
+  "test-depends": [
+  ],
+  "version": "0.0.1"
+}
