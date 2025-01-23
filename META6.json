@@ -12,7 +12,8 @@
   "name": "Entity",
   "perl": "6.d",
   "provides": {
-    "Entity": "lib/Entity.rakumod"
+    "Entity": "lib/Entity.rakumod",
+    "MetamodelX::EntityHOW": "lib/MetamodelX/EntityHOW.rakumod"
   },
   "resources": [
   ],
