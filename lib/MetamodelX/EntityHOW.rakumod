@@ -1,27 +1,53 @@
 unit class MetamodelX::EntityHOW is Metamodel::ClassHOW;
+use JSON::Class;
 
 has Mu $.interface;
 has Mu %.commands{Str};
 has Mu %.events{Str};
+has    @!ids;
 
 role Command {}
 role Event {}
+
+method ids($entity) {
+	@( @!ids.map: { .get-value: $entity } )
+}
 
 multi method interface($entity) {
 	$!interface
 }
 
+method exports($entity --> Map()) {
+	$entity.^name => $entity,
+	|%!commands, |%.events
+}
+
 method compose(Mu $entity) {
-	my @ids;
+	class Query {
+		has &.return
+	}
 	for $entity.^attributes.grep: *.?is-entity-id -> $id {
-		@ids.push: $id;
+		@!ids.push: $id;
 		$!interface.^add_attribute: $id.clone: :package($!interface), :required;
 	}
+	$entity.^add_method: "!handle", my method ($event) {
+		my $ret = self."!run"($event);
+		$ret ~~ self.WHAT ?? $ret !! self
+	}
+	$entity.^add_multi_method: "!run", my method (Query $event) {
+		$event.return.(self)
+	}
 	$!interface.^add_multi_method: "!run", my method ($obj) {die "unrecognized object $obj.raku()"}
+	$!interface.^add_method: "query", my method {
+		my Promise $prom .= new;
+		my \obj = Query.new: :return(-> $val { $prom.keep: $val });
+		.(obj) with &*EMIT;
+		await $prom
+	}
 	$!interface.^compose;
 	callsame;
 	for %!events.values -> $ev {
-		for @ids -> $id {
+		for @!ids -> $id {
 			$ev.^add_attribute:
 				Attribute.new(
 					:name($id.name),
@@ -32,12 +58,13 @@ method compose(Mu $entity) {
 					:1has_accessor,
 				) does role EntityId { method is-entity-id { True } };
 		}
+		$ev.^add_role: JSON::Class;
 		$ev.^compose
 	}
 	for %!commands.values -> $cmd {
-		for @ids -> $id {
+		my @ids = do for @!ids -> $id {
 			$cmd.^add_attribute:
-				Attribute.new(
+				my $attr = Attribute.new(
 					:name($id.name),
 					:type($id.type),
 					:1ro,
@@ -45,7 +72,10 @@ method compose(Mu $entity) {
 					:1required,
 					:1has_accessor,
 				) does role EntityId { method is-entity-id { True } };
+				$attr
 		}
+		$cmd.HOW does role EntityId { method entity-ids($cmd) { |@ids.map: { .get_value: $cmd } } }
+		$cmd.^add_role: JSON::Class;
 		$cmd.^compose
 	}
 }
@@ -75,7 +105,7 @@ multi method add_method(Mu $target, Str $name, &code where { .?is-command }, :$h
 		next without $dv;
 		$attr.name.substr(1) => $dv ~~ Callable ?? $dv.() !! $dv
 	}
-	$!interface.^add_method: "$name", my method (Any:D: |c) {
+	my &m = method (Any:D: |c) {
 		CATCH {
 			default {
 				.note
@@ -86,6 +116,8 @@ multi method add_method(Mu $target, Str $name, &code where { .?is-command }, :$h
 		.(obj) with &*EMIT;
 		obj
 	}
+	$target.^add_method: "$name", &m;
+	$!interface.^add_method: "$name", &m;
 	$target.^add_multi_method: "!run", my method (Command $command where {$_ ~~ $cmd}) {
 		CATCH {
 			default {
@@ -123,7 +155,7 @@ multi method add_method(Mu $target, Str $name, &code where { .?is-event }, :$han
 	$target.^add_method: $name, my method (|c) {
 		CATCH {
 			default {
-				.warn
+				.note
 			}
 		}
 		my %ids = %*entity-ids if %*entity-ids;

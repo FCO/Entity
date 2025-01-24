@@ -1,8 +1,10 @@
 use Entity;
+use JSON::Class:ver<0.0.21>:auth<zef:jonathanstowe>:api<1.0>;
 
 my entity ShoppingCart {
 	has UInt $.user is entity-id;
-	has Str @.products;
+	has Str  @.products;
+	has Bool $.done = False;
 
 	method create-cart is command {
 		$.cart-created
@@ -25,7 +27,15 @@ my entity ShoppingCart {
 	method product-added(ShoppingCart:D: Str :$product, UInt :$count = 1) is event {
 		@!products.push: |($product xx $count)
 	}
+
+	method finish is command {
+		$.done
+	}
+
+	method done is event {
+		$!done = True;
+	}
 }
 
 multi EXPORT             { Map.new: ( ShoppingCart => ShoppingCart.^interface )}
-multi EXPORT("internal") { Map.new: ( ShoppingCart => ShoppingCart )}
+multi EXPORT("internal") { ShoppingCart.^exports }
